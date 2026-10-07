@@ -1,0 +1,45 @@
+{
+  "summary": "Regression testing completed. Public desktop/mobile UI, hamburger navigation, AI reply, and unauthenticated admin gate pass. Backend availability, seeded data, WhatsApp mocked status, auth protection, and overlap response assertions pass, but three booking tests fail because cancelled reservations retain their unique reservation locks.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DELETE /api/reservations/{reservation_id}",
+        "issue": "Cancellation sets status=cancelled but never deletes the matching reservation_locks record. A later valid booking for the same date/time/table returns 409 'That table was just booked', so cancelled tables are permanently unavailable and repeated booking tests fail.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_white_oak_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_2.json"
+  ],
+  "action_items": [
+    "Delete the reservation_locks entry for the reservation's date/start_time/table_id when cancelling, ideally atomically with the status update.",
+    "After fixing cancellation lock cleanup, rerun the full API suite and verify that a cancelled slot can be booked again.",
+    "Consider applying the configured 15-minute buffer consistently when validating PATCH target times; current conflict comparisons use stored 90-minute end_time in places."
+  ],
+  "critical_code_review_comments": [
+    "cancel_reservation updates only reservations and leaves reservation_locks permanently occupied; this violates real availability and atomic reservation lifecycle behavior.",
+    "Backend suite is 5/8 passed (62.5%) because the lock leak contaminates subsequent valid-create setup calls; this is a shared root cause rather than three independent API failures."
+  ],
+  "updated_files": [
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_2.json"
+  ],
+  "success_rate": {
+    "backend": "62.5% (5/8; 3 failures caused by cancellation lock leak)",
+    "frontend": "100% of tested flows (homepage, AI reply, mobile nav/overflow, admin gate)"
+  },
+  "seed_data_creation": "Regression tests created TEST_ reservations on a future date; cleanup could not run for setup cases that were blocked by pre-existing leaked locks. No intentional permanent seed data was created.",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Frontend public flows and unauthenticated admin gate pass. Authenticated OAuth/dashboard remains untestable because /app/memory/test_credentials.md contains no identities or session credentials. Fix cancellation lock cleanup before rerunning the API suite; use a fresh future date or remove stale TEST_ locks for clean verification.",
+  "rca of the issue": "create_reservation inserts a unique reservation_locks document, while cancel_reservation only changes the reservation status to cancelled. Since availability ignores cancelled reservations but atomic creation still sees the stale unique lock, the availability and lock state diverge. Reproduce: create a booking, cancel it, then create the same date/time/table booking; the second create returns 409 instead of 200."
+}

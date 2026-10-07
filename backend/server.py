@@ -75,6 +75,8 @@ async def ensure_seed():
     if await db.menu.count_documents({}) == 0: await db.menu.insert_many([dict(x, item_id=f"menu_{uuid.uuid4().hex[:10]}") for x in MENU])
     await db.reservation_locks.create_index("key", unique=True)
     await db.reservations.create_index([("date",1),("start_time",1),("status",1)])
+    active_codes=await db.reservations.distinct("confirmation_code",{"status":{"$in":["pending","confirmed"]}})
+    await db.reservation_locks.delete_many({"code":{"$nin":active_codes}})
 
 async def busy_tables(date, start, exclude_reservation_id=None):
     start_m = parse_minutes(start)
@@ -82,7 +84,7 @@ async def busy_tables(date, start, exclude_reservation_id=None):
     query={"date":date,"status":{"$in":["pending","confirmed"]}}
     if exclude_reservation_id: query["reservation_id"]={"$ne":exclude_reservation_id}
     reservations = await db.reservations.find(query,{"_id":0}).to_list(1000)
-    return {r["table_id"] for r in reservations if parse_minutes(r["start_time"]) < end_m and start_m < parse_minutes(r["end_time"])}
+    return {r["table_id"] for r in reservations if parse_minutes(r["start_time"]) < end_m and start_m < parse_minutes(r["end_time"])+RESTAURANT["buffer_minutes"]}
 async def available_for(date, guests, preferred=None, exclude_reservation_id=None):
     if guests > RESTAURANT["max_party_size"]: return []
     now = datetime.now(timezone.utc) + timedelta(hours=2)
@@ -137,7 +139,7 @@ async def update_reservation(reservation_id: str, payload: ReservationUpdate):
     if target_date != current["date"] or target_time != current["start_time"] or target_guests != current["number_of_guests"]:
         target_start=parse_minutes(target_time); target_end=target_start+RESTAURANT["duration_minutes"]+RESTAURANT["buffer_minutes"]
         conflicts=await db.reservations.find({"date":target_date,"status":{"$in":["pending","confirmed"]},"reservation_id":{"$ne":reservation_id}},{"_id":0}).to_list(1000)
-        if any(parse_minutes(row["start_time"]) < target_end and target_start < parse_minutes(row["end_time"]) for row in conflicts):
+        if any(parse_minutes(row["start_time"]) < target_end and target_start < parse_minutes(row["end_time"])+RESTAURANT["buffer_minutes"] for row in conflicts):
             raise HTTPException(409,"That new time overlaps another reservation. Please choose another slot.")
         options=await available_for(target_date,target_guests,exclude_reservation_id=reservation_id)
         if not any(slot["time"] == target_time and slot["table_id"] == current["table_id"] for slot in options):
@@ -153,8 +155,10 @@ async def update_reservation(reservation_id: str, payload: ReservationUpdate):
     return clean({**current,**updates})
 @api.delete("/reservations/{reservation_id}")
 async def cancel_reservation(reservation_id: str):
+    current=await db.reservations.find_one({"reservation_id":reservation_id},{"_id":0})
+    if not current: raise HTTPException(404,"Reservation not found")
     result=await db.reservations.update_one({"reservation_id":reservation_id},{"$set":{"status":"cancelled","updated_at":datetime.now(timezone.utc).isoformat()}})
-    if not result.matched_count: raise HTTPException(404,"Reservation not found")
+    await db.reservation_locks.delete_one({"code":current["confirmation_code"]})
     return {"status":"cancelled","notification":"queued_mock"}
 @api.get("/admin/summary")
 async def admin_summary(request: Request):
