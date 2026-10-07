@@ -1,0 +1,49 @@
+{
+  "project_name": "White Oak Restaurant & Reservation SaaS",
+  "theme": "Luxury Fine Dining (Archetype 5: Midnight Blue & Gold/Oak Accents)",
+  "typography": {
+    "heading_font": "Playfair Display, serif",
+    "body_font": "Plus Jakarta Sans, sans-serif",
+    "mono_font": "JetBrains Mono, monospace"
+  },
+  "colors": {
+    "primary": "#1E293B",
+    "secondary": "#C5A059",
+    "accent": "#993C1D",
+    "background": "#0F172A",
+    "card_bg": "#1E293B",
+    "text": "#F8FAFC",
+    "muted": "#94A3B8",
+    "border": "#334155"
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-slate-900/80 border border-slate-700/50",
+    "shadows": "shadow-[0_8px_32px_rgba(0,0,0,0.37)]",
+    "textures": "Subtle noise overlay and warm golden ambient glows"
+  },
+  "component_path": "/app/frontend/src/components",
+  "instructions_to_main_agent": "Build a production-ready fullstack app with FastAPI backend and React frontend. Backend must support SQLite database with tables for reservations (atomic booking lock, date, time, guests, status, customer info, confirmation code), menu items, table/floor-plan management, AI booking assistant endpoint (Gemini 3 Flash integration via Emergent LLM key), WhatsApp Cloud API booking notifications adapter (MOCKED delivery with toggle), analytics, and tenant settings. Frontend must feature an immersive landing page for White Oak Restaurant (New Delhi, 4.7/5 stars, Sadar Bazar) with menu showcase, real-time booking widget, AI Concierge chat, customer booking lookup/modification/cancellation, and a secure Google-authenticated Admin Dashboard with reservation calendar, floor plan editor, menu management, WhatsApp settings, and real-time analytics. Ensure ALL interactive elements include `data-testid` attributes. Never use transparent headers or raw input dates; use clean modals and cards.",
+  "image_urls": [
+    {
+      "category": "Restaurant Interior",
+      "url": "https://images.unsplash.com/photo-1560053608-13721e0d69e8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwzfHxsdXh1cnklMjBmaW5lJTIwZGluaW5nJTIwcmVzdGF1cmFudCUyMGludGVyaW9yJTIwd2FybSUyMGxpZ2h0aW5nfGVufDB8fHx8MTc5MTM2NDI1M3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Luxurious fine dining interior with warm lighting"
+    },
+    {
+      "category": "Gourmet Thali & Food",
+      "url": "https://images.unsplash.com/photo-1589778655375-3e622a9fc91c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwzfHxub3J0aCUyMGluZGlhbiUyMGdvdXJtZXQlMjB0aGFsaSUyMGRlbGljaW91cyUyMGZvb2R8ZW58MHx8fHwxNzkxMzY0MjUzfDA&ixlib=rb-4.1.0&q=85",
+      "description": "North Indian gourmet thali and delicious dishes"
+    },
+    {
+      "category": "Cocktail Bar Lounge",
+      "url": "https://images.unsplash.com/photo-1597075687490-8f673c6c17f6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHxjb2NrdGFpbCUyMGJhciUyMGxvdW5nZSUyMG1vb2R5JTIwZWxlZ2FudHxlbnwwfHx8fDE3OTEzNjQyNTR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Moody elegant cocktail bar lounge"
+    }
+  ],
+  "universal_guidelines": [
+    "Every interactive element must have a data-testid attribute",
+    "Do not use transparent headers without blur/scrim",
+    "Use generous spacing (p-6, p-8, gap-6)",
+    "Respect dark luxury theme with gold accents (#C5A059)"
+  ]
+}
