@@ -76,18 +76,20 @@ async def ensure_seed():
     await db.reservation_locks.create_index("key", unique=True)
     await db.reservations.create_index([("date",1),("start_time",1),("status",1)])
 
-async def busy_tables(date, start):
+async def busy_tables(date, start, exclude_reservation_id=None):
     start_m = parse_minutes(start)
     end_m = start_m + RESTAURANT["duration_minutes"] + RESTAURANT["buffer_minutes"]
-    reservations = await db.reservations.find({"date":date,"status":{"$in":["pending","confirmed"]}},{"_id":0}).to_list(1000)
+    query={"date":date,"status":{"$in":["pending","confirmed"]}}
+    if exclude_reservation_id: query["reservation_id"]={"$ne":exclude_reservation_id}
+    reservations = await db.reservations.find(query,{"_id":0}).to_list(1000)
     return {r["table_id"] for r in reservations if parse_minutes(r["start_time"]) < end_m and start_m < parse_minutes(r["end_time"])}
-async def available_for(date, guests, preferred=None):
+async def available_for(date, guests, preferred=None, exclude_reservation_id=None):
     if guests > RESTAURANT["max_party_size"]: return []
     now = datetime.now(timezone.utc) + timedelta(hours=2)
     result=[]
     for start in slot_times():
         if date == now.strftime("%Y-%m-%d") and parse_minutes(start) < now.astimezone().hour*60+now.minute: continue
-        busy = await busy_tables(date,start)
+        busy = await busy_tables(date,start,exclude_reservation_id)
         tables = [t for t in TABLES if t["capacity"] >= guests and t["status"] == "active" and t["table_id"] not in busy]
         if tables: result.append({"time":start,"label":datetime.strptime(start,"%H:%M").strftime("%-I:%M %p"),"table_id":tables[0]["table_id"],"capacity":tables[0]["capacity"]})
     return result
@@ -131,6 +133,22 @@ async def update_reservation(reservation_id: str, payload: ReservationUpdate):
     current=await db.reservations.find_one({"reservation_id":reservation_id},{"_id":0})
     if not current: raise HTTPException(404,"Reservation not found")
     updates={k:v for k,v in payload.model_dump().items() if v is not None}; updates["updated_at"]=datetime.now(timezone.utc).isoformat()
+    target_date=updates.get("date",current["date"]); target_time=updates.get("start_time",current["start_time"]); target_guests=updates.get("number_of_guests",current["number_of_guests"])
+    if target_date != current["date"] or target_time != current["start_time"] or target_guests != current["number_of_guests"]:
+        target_start=parse_minutes(target_time); target_end=target_start+RESTAURANT["duration_minutes"]+RESTAURANT["buffer_minutes"]
+        conflicts=await db.reservations.find({"date":target_date,"status":{"$in":["pending","confirmed"]},"reservation_id":{"$ne":reservation_id}},{"_id":0}).to_list(1000)
+        if any(parse_minutes(row["start_time"]) < target_end and target_start < parse_minutes(row["end_time"]) for row in conflicts):
+            raise HTTPException(409,"That new time overlaps another reservation. Please choose another slot.")
+        options=await available_for(target_date,target_guests,exclude_reservation_id=reservation_id)
+        if not any(slot["time"] == target_time and slot["table_id"] == current["table_id"] for slot in options):
+            raise HTTPException(409,"That new time is no longer available. Please choose another slot.")
+        old_key=slot_key(current["date"],current["start_time"],current["table_id"]); new_key=slot_key(target_date,target_time,current["table_id"])
+        if new_key != old_key:
+            try:
+                await db.reservation_locks.insert_one({"key":new_key,"created_at":updates["updated_at"],"code":current["confirmation_code"]})
+            except Exception:
+                raise HTTPException(409,"That table was just booked. Please choose another slot.")
+            await db.reservation_locks.delete_one({"key":old_key})
     await db.reservations.update_one({"reservation_id":reservation_id},{"$set":updates})
     return clean({**current,**updates})
 @api.delete("/reservations/{reservation_id}")

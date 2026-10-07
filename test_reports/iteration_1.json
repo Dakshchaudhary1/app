@@ -1,0 +1,58 @@
+{
+  "summary": "Tested live public API/UI flows, responsive navigation, AI assistant, WhatsApp status, and unauthenticated admin protection. Core booking and seeded availability pass; reservation modification allows an occupied time, and the public UI has no lookup/modify/cancel flow.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PATCH /api/reservations/{reservation_id}",
+        "issue": "A confirmed reservation at 22:00 can be patched to 21:00 when its table is already occupied at 21:00; endpoint returns 200 instead of 409 and does not re-check availability or reservation locks.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin gate",
+        "issue": "The visible authentication gate has no data-testid, violating the required testability contract; the first UI assertion could only be made through the .admin-gate class.",
+        "selector": ".admin-gate",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Customer reservation management",
+        "issue": "No public lookup, modify, or cancel UI is rendered in App.js despite backend endpoints existing; customers cannot use these required features from the website.",
+        "affected_selectors": ["[data-testid=booking-widget]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_white_oak_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Make PATCH reservation changes use the same availability and atomic lock checks as creation, returning 409 for occupied targets.",
+    "Add customer-facing lookup, modify, and cancel screens wired to the existing APIs.",
+    "Add data-testid=admin-gate to the unauthenticated admin gate (and keep unique test IDs on all critical states)."
+  ],
+  "critical_code_review_comments": [
+    "update_reservation writes date/start_time/guests directly without checking busy_tables or changing reservation_locks, allowing overlapping reservations.",
+    "The admin API checks for any valid session but does not enforce an admin role; confirm that every Google-authenticated session is intentionally allowed to view guest data."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_white_oak_api.py",
+    "/app/test_reports/iteration_1.json",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "success_rate": {
+    "backend": "87.5% (7/8; modification conflict regression failed)",
+    "frontend": "90% (public booking, AI, mobile, and auth gate behavior passed; authenticated admin dashboard not testable without credentials)"
+  },
+  "seed_data_creation": "Created temporary TEST API/UI reservations on future dates and cancelled them after tests; no permanent seed data intentionally added.",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Public booking flow, seeded availability, lookup/cancel API, AI reply, mocked WhatsApp status, desktop/mobile overflow, and unauthenticated admin gate were tested. Google OAuth callback and authenticated admin stats/floor plan remain untested because /app/memory/test_credentials.md contains no identities or session credentials.",
+  "rca of the issue": "PATCH /api/reservations/{id} merges requested fields into the current document and persists them without invoking available_for, checking the target table's busy interval, or updating the unique reservation_locks collection. Reproduce by creating one reservation at 21:00 and another at 22:00, then PATCH the latter with start_time=21:00; it returns 200 and overlaps the first booking."
+}
